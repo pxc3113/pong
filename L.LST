@@ -1,0 +1,338 @@
+Microsoft (R) Macro Assembler Version 5.00                  11/26/21 20:35:34
+                                                             Page     1-1
+
+
+ 0000				STACK SEGMENT PARA STACK 
+ 0000  0040[			    DB 64 DUP(' ') 
+	   20			
+			 ]	
+				
+ 0040				STACK ENDS 
+				 
+ 0000				DATA SEGMENT PARA 'DATA' 
+ 0000  0140			    WINDOW_WIDTH DW 140h;static 
+ 0002  00C8			    WINDOW_HEIGHT DW 0c8h;static 
+ 0004  0006			    WINDOW_BOUNDS DW 6;static 
+				 
+ 0006  00			    PREV_TIME_STAMP DB 0; DL is one byte that's
+				 why DB is used; variable used whenever time st
+				amp changes 
+				 
+ 0007  00A0			    BALL_ORIGINAL_X DW 0A0h 
+ 0009  0064			    BALL_ORIGINAL_Y DW 64h 
+ 000B  00A0			    BALL_X DW 0A0h 
+ 000D  000A			    BALL_Y DW 0Ah 
+ 000F  0004			    BALL_SIZE DW 04h 
+ 0011  0005			    BALL_VELOCITY_X DW 05h 
+ 0013  0002			    BALL_VELOCITY_Y DW 02h 
+				     
+ 0015  000A			    PADDLE_LEFT_X DW 0Ah 
+ 0017  000A			    PADDLE_LEFT_Y DW 0Ah 
+				 
+ 0019  0130			    PADDLE_RIGHT_X DW 130h 
+ 001B  000A			    PADDLE_RIGHT_Y DW 0Ah 
+				 
+ 001D  0005			    PADDLE_WIDTH DW 05h 
+ 001F  0005			    PADDLE_HEIGHT DW 05h 
+				 
+ 0021				DATA ENDS 
+				 
+ 0000				CODE SEGMENT PARA 'CODE' 
+				 
+ 0000				    MAIN PROC FAR  
+				    ASSUME CS:CODE,DS:DATA,SS:STACK 
+ 0000  B8 ---- R		    MOV AX,DATA 
+ 0003  8E D8			    MOV DS,AX 
+				         
+				        ; CALL CLEAR_SCREEN 
+				        ; MOV AH,00h;set the config to video mo
+				de 
+				        ; MOV AL,13h;choose the video mode 
+				        ; INT 10h;execute the config 
+				         
+				        ; MOV AH,0Bh;set the config 
+				        ; MOV BH,00h;to the bckgrd color 
+				        ; MOV BL,00h;choose black as bckgrd col
+				or 
+				        ; INT 10h;execute the config 
+				 
+Microsoft (R) Macro Assembler Version 5.00                  11/26/21 20:35:34
+                                                             Page     1-2
+
+
+ 0005				        CHECK_TIME:;only draw the ball when cur
+				rent time switches to the next interval 
+				 
+				            ;first we need to get system time  
+ 0005  B4 2C			            MOV AH,2Ch;get system time command 
+ 0007  CD 21			            INT 21h; execute command; then the 
+				following registers store current time stamp by
+				 these units: DH=hr,CL=min,DH=sec,DL=1
+				 
+				            ;we want to draw the ball every 10 
+				msec, so we compare previous time with DL regis
+				ter 
+ 0009  3A 16 0006 R		            CMP DL, PREV_TIME_STAMP 
+ 000D  74 F6			            JE CHECK_TIME;if prev time = curren
+				t time, then we simply update current time 
+				            ;else if current time changes, we w
+				ant to update PREV_TIME_STAMP and draw our ball
+				 
+ 000F  88 16 0006 R		            MOV PREV_TIME_STAMP, DL 
+				                         
+ 0013  E8 00F3 R		            CALL CLEAR_SCREEN 
+ 0016  E8 0022 R		            CALL MOVE_BALL 
+ 0019  E8 006F R		            CALL DRAW_BALL  
+				 
+ 001C  E8 009E R		            CALL DRAW_PADDLES  
+				 
+				            ;after drawing the ball, we want to
+				 repeat the process: check the time again and d
+				raw the next ball  
+ 001F  EB E4			            JMP CHECK_TIME 
+ 0021  CB			        RET 
+ 0022				    MAIN ENDP 
+				 
+ 0022				    MOVE_BALL PROC NEAR 
+				         
+				        ;update ball_x  
+ 0022  A1 0011 R		        MOV AX,BALL_VELOCITY_X 
+ 0025  01 06 000B R		        ADD BALL_X,AX 
+				 
+				        ;check if x is out of the left wall 
+ 0029  83 3E 000B R 00		        CMP BALL_X,00h 
+				        ;if so(x<0) then reset ball to the orig
+				ianl position 
+ 002E  7C 32			        JL RESET_BALL_POSITION 
+				 
+				        ;check if x is out of the right wall 
+ 0030  A1 0000 R		        MOV AX,WINDOW_WIDTH 
+ 0033  2B 06 000F R		        SUB AX,BALL_SIZE 
+				        ; SUB AX,WINDOW_BOUNDS ;this line is us
+				ed to move boundries inwards 
+ 0037  39 06 000B R		        CMP BALL_X,AX 
+				        ;if so then reset ball to the origianl 
+				position 
+ 003B  7F 25			        JG RESET_BALL_POSITION 
+Microsoft (R) Macro Assembler Version 5.00                  11/26/21 20:35:34
+                                                             Page     1-3
+
+
+				         
+				        ;update ball_y  
+ 003D  A1 0013 R		        MOV AX,BALL_VELOCITY_Y 
+ 0040  01 06 000D R		        ADD BALL_Y,AX 
+				 
+				        ;check if y is out of the upper wall 
+ 0044  83 3E 000D R 00		        CMP BALL_Y,00h 
+				        ;if so(x<0) negate y's velocity 
+ 0049  7C 12			        JL NEGATE_VELOCITY_Y 
+				 
+				        ;check if y is out of the bottom wall 
+ 004B  A1 0002 R		        MOV AX,WINDOW_HEIGHT;-BALL_SIZE 
+ 004E  2B 06 000F R		        SUB AX,BALL_SIZE 
+				        ; SUB AX,WINDOW_BOUNDS;this line is use
+				d to move boundries inwards 
+ 0052  39 06 000D R		        CMP BALL_Y,AX 
+				        ;if so then negate y's velocity 
+ 0056  7F 05			        JG NEGATE_VELOCITY_Y 
+				 
+ 0058  C3			        RET 
+				 
+ 0059				        RESET_POSITION: 
+ 0059  E8 0062 R		            CALL RESET_BALL_POSITION 
+ 005C  C3			            RET 
+				             
+ 005D				        NEGATE_VELOCITY_Y: 
+ 005D  F7 1E 0013 R		            NEG BALL_VELOCITY_Y 
+ 0061  C3			            RET 
+				         
+ 0062				    MOVE_BALL ENDP 
+				 
+ 0062				    RESET_BALL_POSITION PROC NEAR 
+ 0062  A1 0007 R		        MOV AX,BALL_ORIGINAL_X 
+ 0065  A3 000B R		        MOV BALL_X,AX 
+				 
+ 0068  A1 0009 R		        MOV AX,BALL_ORIGINAL_Y 
+ 006B  A3 000D R		        MOV BALL_Y,AX 
+				 
+ 006E  C3			        RET 
+ 006F				    RESET_BALL_POSITION ENDP 
+				 
+ 006F				    DRAW_BALL PROC NEAR 
+				 
+ 006F  8B 0E 000B R		        MOV CX,BALL_X;set the initial drawing c
+				olumn (X) 
+ 0073  8B 16 000D R		        MOV DX,BALL_Y;set the initial drawing r
+				ow (Y) 
+				 
+ 0077				        DRAW_BALL_HORIZONTAL: 
+				        ; first draw the pixel 
+ 0077  B4 0C			            MOV AH,0Ch;set the config to writin
+				g a pixel 
+ 0079  B0 0F			            MOV AL,0Fh;choose white as color 
+ 007B  B7 00			            MOV BH,00h;set the page # 
+Microsoft (R) Macro Assembler Version 5.00                  11/26/21 20:35:34
+                                                             Page     1-4
+
+
+ 007D  CD 10			            INT 10h;execute the config 
+				 
+				        ;then increment current column to draw 
+				the next pixel 
+ 007F  41			            INC CX 
+				 
+				        ;check if we're oob 
+ 0080  8B C1			            MOV AX,CX 
+ 0082  2B 06 000B R		            SUB AX,BALL_X 
+ 0086  3B 06 000F R		            CMP AX,BALL_SIZE 
+				        ;if not oob, then draw the next pixel 
+ 008A  7E EB			            JNG DRAW_BALL_HORIZONTAL 
+				        ;else if oob, then increment current ro
+				w, DX, check if DX is oob, and reset current co
+				lumn CX 
+ 008C  42			            INC DX 
+ 008D  8B 0E 000B R		            MOV CX,BALL_X 
+ 0091  8B C2			            MOV AX,DX 
+ 0093  2B 06 000D R		            SUB AX,BALL_Y 
+ 0097  3B 06 000F R		            CMP AX,BALL_SIZE 
+ 009B  7E DA			            JNG DRAW_BALL_HORIZONTAL 
+ 009D  C3			        RET 
+ 009E				    DRAW_BALL ENDP 
+				 
+ 009E				    DRAW_PADDLES PROC NEAR 
+ 009E				        DRAW_LEFT_PADDLE: 
+ 009E  8B 0E 0015 R		            MOV CX,PADDLE_LEFT_X;set the initia
+				l drawing column (X) 
+ 00A2  8B 16 0017 R		            MOV DX,PADDLE_LEFT_Y;set the initia
+				l drawing row (Y) 
+ 00A6  B4 0C			            MOV AH,0Ch;set the config to writin
+				g 
+ 00A8  B0 0F			            MOV AL,0Fh;choose white as color 
+ 00AA  B7 00			            MOV BH,00h;set the page number 
+ 00AC  CD 10			            INT 10h;execute the config 
+				 
+ 00AE  41			            INC CX 
+ 00AF  8B C1			            MOV AX,CX 
+ 00B1  2B 06 0015 R		            SUB AX,PADDLE_LEFT_X 
+ 00B5  3B 06 001D R		            CMP AX,PADDLE_WIDTH 
+ 00B9  7E E3			            JNG DRAW_LEFT_PADDLE 
+				 
+ 00BB  8B 0E 0015 R		            MOV CX,PADDLE_LEFT_X 
+ 00BF  42			            INC DX 
+				 
+ 00C0  8B C2			            MOV AX,DX 
+ 00C2  2B 06 0017 R		            SUB AX,PADDLE_LEFT_Y 
+ 00C6  3B 06 001F R		            CMP AX,PADDLE_HEIGHT 
+ 00CA  7E D2			            JNG DRAW_LEFT_PADDLE 
+ 00CC				        DRAW_RIGHT_PADDLE: 
+ 00CC  B4 0C			            MOV AH,0Ch;set the config to writin
+				g 
+ 00CE  B0 0F			            MOV AL,0Fh;choose white as color 
+ 00D0  B7 00			            MOV BH,00h;set the page number 
+Microsoft (R) Macro Assembler Version 5.00                  11/26/21 20:35:34
+                                                             Page     1-5
+
+
+ 00D2  CD 10			            INT 10h;execute the config 
+				 
+ 00D4  41			            INC CX 
+ 00D5  8B C1			            MOV AX,CX 
+ 00D7  2B 06 001B R		            SUB AX,PADDLE_RIGHT_Y 
+ 00DB  3B 06 001D R		            CMP AX,PADDLE_WIDTH 
+ 00DF  7E BD			            JNG DRAW_LEFT_PADDLE 
+				 
+ 00E1  8B 0E 001B R		            MOV CX,PADDLE_RIGHT_Y 
+ 00E5  42			            INC DX 
+				 
+ 00E6  8B C2			            MOV AX,DX 
+ 00E8  2B 06 001B R		            SUB AX,PADDLE_RIGHT_Y 
+ 00EC  3B 06 001F R		            CMP AX,PADDLE_HEIGHT 
+ 00F0  7E DA			            JNG DRAW_RIGHT_PADDLE 
+ 00F2  C3			        RET 
+ 00F3				    DRAW_PADDLES ENDP 
+				 
+ 00F3				    CLEAR_SCREEN PROC NEAR 
+ 00F3  B4 00			        MOV AH,00h;set the config to video mode
+				 
+ 00F5  B0 13			        MOV AL,13h;choose the video mode 
+ 00F7  CD 10			        INT 10h;execute the config 
+				         
+ 00F9  B4 0B			        MOV AH,0Bh;set the config 
+ 00FB  B7 00			        MOV BH,00h;to the bckgrd color 
+ 00FD  B3 00			        MOV BL,00h;choose black as bckgrd color
+				 
+ 00FF  CD 10			        INT 10h;execute the config 
+ 0101  C3			        RET 
+ 0102				    CLEAR_SCREEN ENDP 
+				 
+ 0102				CODE ENDS 
+				END 
+Microsoft (R) Macro Assembler Version 5.00                  11/26/21 20:35:34
+                                                             Symbols-1
+
+
+Segments and Groups:
+
+                N a m e         	Length	 Align	Combine Class
+
+CODE . . . . . . . . . . . . . .  	0102	PARA	NONE	'CODE'
+DATA . . . . . . . . . . . . . .  	0021	PARA	NONE	'DATA'
+STACK  . . . . . . . . . . . . .  	0040	PARA	STACK	
+
+Symbols:            
+
+                N a m e         	Type	 Value	 Attr
+
+BALL_ORIGINAL_X  . . . . . . . .  	L WORD	0007	DATA
+BALL_ORIGINAL_Y  . . . . . . . .  	L WORD	0009	DATA
+BALL_SIZE  . . . . . . . . . . .  	L WORD	000F	DATA
+BALL_VELOCITY_X  . . . . . . . .  	L WORD	0011	DATA
+BALL_VELOCITY_Y  . . . . . . . .  	L WORD	0013	DATA
+BALL_X . . . . . . . . . . . . .  	L WORD	000B	DATA
+BALL_Y . . . . . . . . . . . . .  	L WORD	000D	DATA
+
+CHECK_TIME . . . . . . . . . . .  	L NEAR	0005	CODE
+CLEAR_SCREEN . . . . . . . . . .  	N PROC	00F3	CODE	Length = 000F
+
+DRAW_BALL  . . . . . . . . . . .  	N PROC	006F	CODE	Length = 002F
+DRAW_BALL_HORIZONTAL . . . . . .  	L NEAR	0077	CODE
+DRAW_LEFT_PADDLE . . . . . . . .  	L NEAR	009E	CODE
+DRAW_PADDLES . . . . . . . . . .  	N PROC	009E	CODE	Length = 0055
+DRAW_RIGHT_PADDLE  . . . . . . .  	L NEAR	00CC	CODE
+
+MAIN . . . . . . . . . . . . . .  	F PROC	0000	CODE	Length = 0022
+MOVE_BALL  . . . . . . . . . . .  	N PROC	0022	CODE	Length = 0040
+
+NEGATE_VELOCITY_Y  . . . . . . .  	L NEAR	005D	CODE
+
+PADDLE_HEIGHT  . . . . . . . . .  	L WORD	001F	DATA
+PADDLE_LEFT_X  . . . . . . . . .  	L WORD	0015	DATA
+PADDLE_LEFT_Y  . . . . . . . . .  	L WORD	0017	DATA
+PADDLE_RIGHT_X . . . . . . . . .  	L WORD	0019	DATA
+PADDLE_RIGHT_Y . . . . . . . . .  	L WORD	001B	DATA
+PADDLE_WIDTH . . . . . . . . . .  	L WORD	001D	DATA
+PREV_TIME_STAMP  . . . . . . . .  	L BYTE	0006	DATA
+
+RESET_BALL_POSITION  . . . . . .  	N PROC	0062	CODE	Length = 000D
+RESET_POSITION . . . . . . . . .  	L NEAR	0059	CODE
+
+WINDOW_BOUNDS  . . . . . . . . .  	L WORD	0004	DATA
+WINDOW_HEIGHT  . . . . . . . . .  	L WORD	0002	DATA
+WINDOW_WIDTH . . . . . . . . . .  	L WORD	0000	DATA
+
+@FILENAME  . . . . . . . . . . .  	TEXT  pong2		
+
+Microsoft (R) Macro Assembler Version 5.00                  11/26/21 20:35:34
+                                                             Symbols-2
+
+
+
+    217 Source  Lines
+    217 Total   Lines
+     34 Symbols
+
+  51260 + 448900 Bytes symbol space free
+
+      0 Warning Errors
+      0 Severe  Errors
