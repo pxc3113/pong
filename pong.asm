@@ -98,30 +98,74 @@ CODE SEGMENT PARA 'CODE'
         ;if so then negate y's velocity
         JG NEGATE_VELOCITY_Y
 
-        RET
+        ;if ball_x>paddle_right_x-ball_size &&
+        ;paddle_right_y+paddle_height>ball_y>paddle_right_y-ball_size 
+        ;then ball is collding with the right paddle
+        MOV AX,PADDLE_RIGHT_X
+        SUB AX,BALL_SIZE
+        CMP AX,BALL_X
+        JNL LEFT_PADDLE_COLLISION
+
+        MOV AX,PADDLE_RIGHT_Y
+        ADD AX,PADDLE_HEIGHT
+        CMP AX,BALL_Y
+        JNG LEFT_PADDLE_COLLISION
+
+        MOV AX,PADDLE_RIGHT_Y
+        SUB AX,BALL_SIZE
+        CMP AX,BALL_Y
+        JNL LEFT_PADDLE_COLLISION
+
+        JMP NEGATE_VELOCITY_X
+
+        LEFT_PADDLE_COLLISION:
+        ;if ball_x<paddle_left_x+paddle_width &&
+        ;paddle_left_y+paddle_height>ball_y>paddle_left_y-ball_size 
+        ;then ball is collding with the right paddle    
+        MOV AX,PADDLE_LEFT_X
+        ADD AX,PADDLE_WIDTH
+        CMP AX,BALL_X
+        JNG EXIT
+
+        MOV AX,PADDLE_LEFT_Y
+        ADD AX,PADDLE_HEIGHT
+        CMP AX,BALL_Y
+        JNG EXIT
+
+        MOV AX,PADDLE_LEFT_Y
+        SUB AX,BALL_SIZE
+        CMP AX,BALL_Y
+        JNL EXIT
+
+        JMP NEGATE_VELOCITY_X
+        
+        NEGATE_VELOCITY_X:
+            NEG BALL_VELOCITY_X
+            RET
 
         RESET_POSITION:
             CALL RESET_BALL_POSITION
-            RET
-            
-        NEGATE_VELOCITY_X:
-            NEG BALL_VELOCITY_X
             RET
 
         NEGATE_VELOCITY_Y:
             NEG BALL_VELOCITY_Y
             RET
-        
+        EXIT:
+            RET
     MOVE_BALL ENDP
 
+NEGATE_VELOCITY_X_ PROC NEAR
+            NEG BALL_VELOCITY_X
+            RET
+NEGATE_VELOCITY_X_ ENDP
+
 MOVE_PADDLES PROC NEAR               ;process movement of the paddles
-		
 ;       Left paddle movement
 		
 		;check if any key is being pressed (if not check the other paddle)
 		MOV AH,01h
 		INT 16h
-		JZ CHECK_RIGHT_PADDLE_MOVEMENT ;ZF = 1, JZ -> Jump If Zero
+		JZ EXITT ;ZF = 1, JZ -> Jump If Zero
 		
 		;check which key is being pressed (AL = ASCII character)
 		MOV AH,00h
@@ -138,18 +182,57 @@ MOVE_PADDLES PROC NEAR               ;process movement of the paddles
 		JE MOVE_LEFT_PADDLE_DOWN
 		CMP AL,53h ;'S'
 		JE MOVE_LEFT_PADDLE_DOWN
-		JMP CHECK_RIGHT_PADDLE_MOVEMENT
+		
+		;if it is 'o' or 'O' move up
+		CMP AL,6Fh ;'o'
+		JE MOVE_RIGHT_PADDLE_UP
+		CMP AL,4Fh ;'O'
+		JE MOVE_RIGHT_PADDLE_UP
+
+		;if it is 'l' or 'L' move down
+		CMP AL,6Ch ;'l'
+		JE MOVE_RIGHT_PADDLE_DOWN
+		CMP AL,4Ch ;'L'
+		JE MOVE_RIGHT_PADDLE_DOWN
 		
 		MOVE_LEFT_PADDLE_UP:
-			MOV AX,PADDLE_VELOCITY
-			ADD PADDLE_LEFT_Y,AX
-			; JMP CHECK_RIGHT_PADDLE_MOVEMENT
-			
-		MOVE_LEFT_PADDLE_DOWN:
+            CMP PADDLE_LEFT_Y,00h
+            JL EXITT;OOB 
+
 			MOV AX,PADDLE_VELOCITY
 			SUB PADDLE_LEFT_Y,AX
-			; JMP CHECK_RIGHT_PADDLE_MOVEMENT
+			RET
+
+		MOVE_LEFT_PADDLE_DOWN:
+            MOV AX,WINDOW_HEIGHT
+            SUB AX,PADDLE_LEFT_Y;WH-PY=H
+            CMP AX,PADDLE_HEIGHT
+            JL EXITT;OOB
+
+			MOV AX,PADDLE_VELOCITY
+			ADD PADDLE_LEFT_Y,AX
+			RET
 			
+		MOVE_RIGHT_PADDLE_UP:
+            CMP PADDLE_RIGHT_Y,00h
+            JL EXITT;OOB 
+
+			MOV AX,PADDLE_VELOCITY
+			SUB PADDLE_RIGHT_Y,AX
+			RET
+			
+		MOVE_RIGHT_PADDLE_DOWN:
+            MOV AX,WINDOW_HEIGHT
+            SUB AX,PADDLE_RIGHT_Y
+            CMP AX,PADDLE_HEIGHT
+            JL EXITT;OOB
+
+			MOV AX,PADDLE_VELOCITY
+			ADD PADDLE_RIGHT_Y,AX
+			RET
+        
+        EXITT:
+            RET
 	MOVE_PADDLES ENDP
 
     RESET_BALL_POSITION PROC NEAR
